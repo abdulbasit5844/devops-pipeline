@@ -1,0 +1,42 @@
+# Part II - deployed by the Jenkins pipeline.
+# Differences from Part I: code is bind-mounted as a volume (no image build),
+# and ports / container names / volume name are all different.
+services:
+  db:
+    image: mariadb:10.11
+    container_name: a2_ci_db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: mydb
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3308:3306"
+    volumes:
+      - ci_mysql_data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  web:
+    image: aen8aen/devops-a2-web:latest     # only supplies Apache+PHP+mysqli
+    container_name: a2_ci_web
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8200:80"
+    volumes:
+      - ./app:/var/www/html                         # code comes from the Jenkins workspace
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppass
+      MYSQL_DATABASE: mydb
+      APP_ENV_LABEL: "Part II - Jenkins pipeline"
+
+volumes:
+  ci_mysql_data:
